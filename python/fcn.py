@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import models
 from torchvision.models.vgg import VGG
+from torchsummary import summary
 
 
 class FCN32s(nn.Module):
@@ -154,7 +155,7 @@ class FCNs(nn.Module):
         score = self.bn4(self.relu(self.deconv4(score)))  # size=(N, 64, x.H/2, x.W/2)
         score = score + x1                                # element-wise add, size=(N, 64, x.H/2, x.W/2)
         score = self.bn5(self.relu(self.deconv5(score)))  # size=(N, 32, x.H, x.W)
-        # 逐像素分类？
+
         score = self.classifier(score)                    # size=(N, n_class, x.H/1, x.W/1)
 
         return score  # size=(N, n_class, x.H/1, x.W/1)
@@ -231,7 +232,7 @@ def make_layers(cfg, batch_norm=False):
 
 
 if __name__ == "__main__":
-    batch_size, n_class, h, w = 10, 20, 160, 160
+    batch_size, n_class, h, w = 2, 20, 160, 160
 
     # test output size
     vgg_model = VGGNet(requires_grad=True)
@@ -239,20 +240,20 @@ if __name__ == "__main__":
     output = vgg_model(input)
     assert output['x5'].size() == torch.Size([batch_size, 512, 7, 7])
 
-    fcn_model = FCN32s(pretrained_net=vgg_model, n_class=n_class)
-    input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
-    output = fcn_model(input)
-    assert output.size() == torch.Size([batch_size, n_class, h, w])
-
-    fcn_model = FCN16s(pretrained_net=vgg_model, n_class=n_class)
-    input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
-    output = fcn_model(input)
-    assert output.size() == torch.Size([batch_size, n_class, h, w])
-
-    fcn_model = FCN8s(pretrained_net=vgg_model, n_class=n_class)
-    input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
-    output = fcn_model(input)
-    assert output.size() == torch.Size([batch_size, n_class, h, w])
+    # fcn_model = FCN32s(pretrained_net=vgg_model, n_class=n_class)
+    # input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
+    # output = fcn_model(input)
+    # assert output.size() == torch.Size([batch_size, n_class, h, w])
+    #
+    # fcn_model = FCN16s(pretrained_net=vgg_model, n_class=n_class)
+    # input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
+    # output = fcn_model(input)
+    # assert output.size() == torch.Size([batch_size, n_class, h, w])
+    #
+    # fcn_model = FCN8s(pretrained_net=vgg_model, n_class=n_class)
+    # input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
+    # output = fcn_model(input)
+    # assert output.size() == torch.Size([batch_size, n_class, h, w])
 
     fcn_model = FCNs(pretrained_net=vgg_model, n_class=n_class)
     input = torch.autograd.Variable(torch.randn(batch_size, 3, h, w))
@@ -260,7 +261,7 @@ if __name__ == "__main__":
     assert output.size() == torch.Size([batch_size, n_class, h, w])
 
     print("Pass size check")
-
+    #
     # test a random batch, loss should decrease
     fcn_model = FCNs(pretrained_net=vgg_model, n_class=n_class)
     criterion = nn.BCELoss()
@@ -275,3 +276,9 @@ if __name__ == "__main__":
         loss.backward()
         print("iter{}, loss {}".format(iter, loss.data[0]))
         optimizer.step()
+
+    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # vgg = VGGNet(requires_grad=True)
+    # fcn = FCNs(pretrained_net=vgg, n_class=20)
+    # fcn = fcn.to(device)
+    # summary(fcn, (3, 160, 160))

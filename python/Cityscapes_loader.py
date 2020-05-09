@@ -18,7 +18,8 @@ root_dir   = "CityScapes/"
 train_file = os.path.join(root_dir, "train.csv")
 val_file   = os.path.join(root_dir, "val.csv")
 
-num_class = 20
+# num_class = 20
+num_class    = 32
 means     = np.array([103.939, 116.779, 123.68]) / 255. # mean of three channels in the order of BGR
 h, w      = 1024, 2048
 train_h   = int(h/2)  # 512
@@ -75,7 +76,7 @@ class CityScapesDataset(Dataset):
 
         # create one-hot encoding
         h, w = label.size()
-        target = torch.zeros(self.n_class, h, w)
+        target = torch.zeros(self.n_class, h, w) # (n_class, h, w)
         for c in range(self.n_class):
             target[c][label == c] = 1
 

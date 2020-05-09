@@ -94,16 +94,26 @@ class CamVidDataset(Dataset):
         img = torch.from_numpy(img.copy()).float()
         label = torch.from_numpy(label.copy()).long()
 
-        # create one-hot encoding：这是什么意思，为什么这个32通道数的张量是target
+        # create one-hot encoding 将语义标签图转换为one-hot编码
         h, w = label.size()
-        # 创建一个零张量，长宽与label一致
+        # 创建一个 n_class 通道数的零张量，长宽与label一致
+        """
+        为每个像素进行分类（类别数=n_class），n_class * 1 * 1 为一个像素标签，表示为[0,0,0,...,1,...,0]
+        图像大小为 h * w，故总的像素标签大小为 n_class * h * w
+        """
         target = torch.zeros(self.n_class, h, w)
         for c in range(self.n_class):
-            target[c][label == c] = 1
-
+            target[c][label == c] = 1 # target[c]表示，类别c对应的分类标签，这个标签的size=(h, w)
         sample = {'X': img, 'Y': target, 'l': label}
 
         return sample
+
+# 将标记类别图（每个像素值代该位置像素点的类别）转换为one-hot编码
+def onehot(data, n):
+    buf = np.zeros(data.shape + (n, ))
+    nmsk = np.arange(data.size)*n + data.ravel()
+    buf.ravel()[nmsk-1] = 1
+    return buf
 
 # 展示batch图片
 def show_batch(batch):

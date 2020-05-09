@@ -20,8 +20,9 @@ import sys
 import os
 
 
-n_class    = 20
-batch_size = 6
+#n_class    = 20
+n_class    = 32
+batch_size = 1
 epochs     = 500
 lr         = 1e-4
 momentum   = 0
@@ -48,24 +49,12 @@ model_path = os.path.join(model_dir, configs)
 use_gpu = torch.cuda.is_available()
 num_gpu = list(range(torch.cuda.device_count()))
 
-# if sys.argv[1] == 'CamVid':
-#     train_data = CamVidDataset(csv_file=train_file, phase='train')
-# else:
-#     train_data = CityScapesDataset(csv_file=train_file, phase='train')
-# train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=8)
-#
-# if sys.argv[1] == 'CamVid':
-#     val_data = CamVidDataset(csv_file=val_file, phase='val', flip_rate=0)
-# else:
-#     val_data = CityScapesDataset(csv_file=val_file, phase='val', flip_rate=0)
-# val_loader = DataLoader(val_data, batch_size=1, num_workers=8)
-
 # 实例化数据集
 train_data = CamVidDataset(csv_file=train_file, phase='train')
 val_data = CamVidDataset(csv_file=val_file, phase='val', flip_rate=0)
 # 加载数据集，返回可迭代对象
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
-val_loader = DataLoader(val_data, batch_size=1, num_workers=2)
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
+val_loader = DataLoader(val_data, batch_size=batch_size, num_workers=2)
 # 微调模型：VGGNet去掉全连接层
 vgg_model = VGGNet(requires_grad=True, remove_fc=True)
 fcn_model = FCNs(pretrained_net=vgg_model, n_class=n_class)
@@ -89,7 +78,7 @@ score_dir = os.path.join("scores", configs)
 if not os.path.exists(score_dir):
     os.makedirs(score_dir)
 
-# 评价标准？
+# 评价标准
 IU_scores    = np.zeros((epochs, n_class))
 pixel_scores = np.zeros(epochs)
 
@@ -107,14 +96,14 @@ def train():
                 labels = Variable(batch['Y'].cuda())
             else:
                 inputs, labels = Variable(batch['X']), Variable(batch['Y'])
-
+            # outputs.shape = [n_class,h,w]，通道c的每个像素对应类别c的预测概率， n_class=32， c=0,1,...,n_class-1
             outputs = fcn_model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
             if iter % 10 == 0:
-                print("epoch{}, iter{}, loss: {}".format(epoch, iter, loss.data[0]))
+                print("epoch{}, iter{}, loss: {}".format(epoch, iter, loss.item()))
         
         print("Finish epoch {}, time elapsed {}".format(epoch, time.time() - ts))
         torch.save(fcn_model, model_path)
@@ -136,8 +125,18 @@ def val(epoch):
         output = output.data.cpu().numpy()
 
         N, _, h, w = output.shape
+        """
+        图像大小为 h * w，故总的像素标签大小为 n_class * h * w
+        n_class * 1 * 1 为一个像素标签，表示为[0,0,0,...,1,...,0]，假设标签索引值为 15，即这个像素是属于第15个类别
+        假设output中的一个像素分类预测概率为  [0.02,0,...,0.8,...,0.03]，找到最大索引值为 15，那么说明这个像素分类正确
+        索引值就是类别的标签值，计算像素的分类准确率，就是计算pred和target中索引值相等的个数
+        # （N,32,480,640）→（N,480,640,32）→（480*640,32）→（N,480,640），取每行概率最大值的索引，再重塑成 N,H,W
+        pred=(H,W)          target=（H,W）
+        4 4 7 7  7          4 4 4 7  7
+        4 4 4 7  10         4 4 7 7  7
+        4 4 4 10 10         4 4 4 10 10
+        """
         pred = output.transpose(0, 2, 3, 1).reshape(-1, n_class).argmax(axis=1).reshape(N, h, w)
-
         target = batch['l'].cpu().numpy().reshape(N, h, w)
         for p, t in zip(pred, target):
             total_ious.append(iou(p, t))
@@ -178,5 +177,5 @@ def pixel_acc(pred, target):
 
 
 if __name__ == "__main__":
-    val(0)  # show the accuracy before training
+    #val(0)  # show the accuracy before training
     train()
